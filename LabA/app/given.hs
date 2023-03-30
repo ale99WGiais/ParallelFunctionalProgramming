@@ -2,6 +2,9 @@ import Data.List
 import System.Random
 import Criterion.Main
 
+import Control.Parallel
+import Control.DeepSeq
+
 -- code borrowed from the Stanford Course 240h (Functional Systems in Haskell)
 -- I suspect it comes from Bryan O'Sullivan, author of Criterion
 
@@ -23,9 +26,15 @@ resamples k xs =
     zipWith (++) (inits xs) (map (drop k) (tails xs))
 
 
-jackknife :: ([a] -> b) -> [a] -> [b]
-jackknife f = map f . resamples 500
-
+jackknife :: NFData b => ([a] -> b) -> [a] -> [b]
+jackknife f = pMap f . resamples 500
+ 
+pMap :: NFData b => (a -> b) -> [a] -> [b]
+pMap _ [] = []
+pMap f (x:xs) = x' `par` xs' `pseq` x' : xs'
+  where
+    x'  = force $ f x
+    xs' = pMap f xs
 
 crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
 
