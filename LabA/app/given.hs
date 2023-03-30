@@ -26,8 +26,14 @@ resamples k xs =
     zipWith (++) (inits xs) (map (drop k) (tails xs))
 
 
-jackknife :: NFData b => ([a] -> b) -> [a] -> [b]
-jackknife f = pMap f . resamples 500
+jackknife :: ([a] -> b) -> [a] -> [b]
+jackknife f = map f . resamples 500
+
+jackknife_pmap :: NFData b => ([a] -> b) -> [a] -> [b]
+jackknife_pmap f = pMap_chunked f . resamples 500
+
+jackknife_epmap :: NFData b => ([a] -> b) -> [a] -> [b]
+jackknife_epmap f l = runEval $ (epMap f . resamples 500) l
  
 pMap :: NFData b => (a -> b) -> [a] -> [b]
 pMap _ [] = []
@@ -36,7 +42,46 @@ pMap f (x:xs) = x' `par` xs' `pseq` x' : xs'
     x'  = force $ f x
     xs' = pMap f xs
 
+pMap_chunked :: NFData b => (a -> b) -> [a] -> [b]
+pMap_chunked _ [] = []
+pMap_chunked f xs = foldr (++) [] l
+  where
+    l = pMap (map f) (chunksOf 4 xs)
+
+data Eval a = Done a
+
+runEval :: Eval a -> a
+runEval (Done a) = a
+
+instance Functor Eval where
+    fmap f (Done a) = Done (f a)
+
+instance Applicative Eval where
+    pure x = Done x
+    Done f <*> Done x = Done (f x)
+
+instance Monad Eval where
+    Done x >>= k = k x
+
+rpar :: a -> Eval a
+rpar a = a `par` Done a
+
+rseq :: a -> Eval a
+rseq a = a `pseq` Done a
+
+epMap :: NFData b => (a -> b) -> [a] -> Eval [b]
+epMap _ [] = return []
+epMap f (x:xs) = do
+    x'  <- rpar $ force (f x)
+    xs' <- epMap f xs
+    return (x' : xs')
+
+
 crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
+
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf n [] = []
+chunksOf n xs = take n xs : chunksOf n (drop n xs)
 
 main = do
   let (xs,ys) = splitAt 1500  (take 6000
@@ -46,7 +91,7 @@ main = do
   let rs = crud xs ++ ys
   putStrLn $ "sample mean:    " ++ show (mean rs)
 
-  let j = jackknife mean rs :: [Float]
+  let j = jackknife_pmap mean rs :: [Float]
   putStrLn $ "jack mean min:  " ++ show (minimum j)
   putStrLn $ "jack mean max:  " ++ show (maximum j)
   defaultMain
