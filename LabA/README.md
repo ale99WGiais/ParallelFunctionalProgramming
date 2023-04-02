@@ -8,3 +8,5 @@ stack run -- +RTS -lf -N4
 
 
 
+
+

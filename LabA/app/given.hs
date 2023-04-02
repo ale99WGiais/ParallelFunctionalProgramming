@@ -30,7 +30,8 @@ jackknife :: ([a] -> b) -> [a] -> [b]
 jackknife f = map f . resamples 500
 
 jackknife_pmap :: NFData b => ([a] -> b) -> [a] -> [b]
-jackknife_pmap f = pMap_chunked f . resamples 500
+--jackknife_pmap f = pMap f . resamples 500
+jackknife_pmap f = (map_chunked 20 pMap) f . resamples 500
 
 jackknife_epmap :: NFData b => ([a] -> b) -> [a] -> [b]
 jackknife_epmap f l = runEval $ (epMap f . resamples 500) l
@@ -42,11 +43,10 @@ pMap f (x:xs) = x' `par` xs' `pseq` x' : xs'
     x'  = force $ f x
     xs' = pMap f xs
 
-pMap_chunked :: NFData b => (a -> b) -> [a] -> [b]
-pMap_chunked _ [] = []
-pMap_chunked f xs = foldr (++) [] l
+map_chunked _ _ _ [] = []
+map_chunked chuckSize mapper f xs = foldr (++) [] l
   where
-    l = pMap (map f) (chunksOf 4 xs)
+    l = mapper (map f) (chunksOf chuckSize xs)
 
 data Eval a = Done a
 
@@ -96,5 +96,5 @@ main = do
   putStrLn $ "jack mean max:  " ++ show (maximum j)
   defaultMain
         [
-         bench "jackknife" (nf (jackknife  mean) rs)
+         bench "jackknife" (nf (jackknife_pmap  mean) rs)
          ]
