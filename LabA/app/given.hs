@@ -42,6 +42,13 @@ pMap f (x:xs) = x' `par` xs' `pseq` x' : xs'
     x'  = force $ f x
     xs' = pMap f xs
 
+parMap :: NFData b => (a -> b) -> [a] -> [b]
+parMap _ [] = []
+parMap f (x:xs) = do
+            leftVar <- spawn $ parMap f xs 
+            left <- get leftVar
+            return $ (f x):left
+
 pMap_chunked :: NFData b => (a -> b) -> [a] -> [b]
 pMap_chunked _ [] = []
 pMap_chunked f xs = foldr (++) [] l
