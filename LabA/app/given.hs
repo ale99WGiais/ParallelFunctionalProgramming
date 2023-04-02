@@ -4,6 +4,7 @@ import Criterion.Main
 
 import Control.Parallel
 import Control.DeepSeq
+import Control.Monad
 
 -- code borrowed from the Stanford Course 240h (Functional Systems in Haskell)
 -- I suspect it comes from Bryan O'Sullivan, author of Criterion
@@ -43,12 +44,12 @@ pMap f (x:xs) = x' `par` xs' `pseq` x' : xs'
     x'  = force $ f x
     xs' = pMap f xs
 
-parMap :: NFData b => (a -> b) -> [a] -> [b]
-parMap _ [] = []
-parMap f (x:xs) = do
-            leftVar <- spawn $ parMap f xs 
-            left <- get leftVar
-            return $ (f x):left
+--parMap :: NFData b => (a -> b) -> [a] -> [b]
+--parMap _ [] = []
+--parMap f (x:xs) = do
+--            leftVar <- spawn $ parMap f xs 
+--            left <- get leftVar
+--            return $ (f x):left
 
 map_chunked _ _ _ [] = []
 map_chunked chuckSize mapper f xs = foldr (++) [] l
@@ -98,10 +99,10 @@ main = do
   let rs = crud xs ++ ys
   putStrLn $ "sample mean:    " ++ show (mean rs)
 
-  let j = jackknife_pmap mean rs :: [Float]
+  let j = jackknife_epmap mean rs :: [Float]
   putStrLn $ "jack mean min:  " ++ show (minimum j)
   putStrLn $ "jack mean max:  " ++ show (maximum j)
   defaultMain
         [
-         bench "jackknife" (nf (jackknife_pmap  mean) rs)
+         bench "jackknife" (nf (jackknife_epmap  mean) rs)
          ]
