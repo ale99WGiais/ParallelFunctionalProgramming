@@ -6,7 +6,7 @@ import Control.Parallel
 import Control.DeepSeq
 import Control.Monad
 import Control.Parallel.Strategies (using, parListChunk, rdeepseq)
-import Control.Monad.Par (get, spawn, runPar)
+import Control.Monad.Par (get, spawn, runPar, Par)
 
 -- code borrowed from the Stanford Course 240h (Functional Systems in Haskell)
 -- I suspect it comes from Bryan O'Sullivan, author of Criterion
@@ -49,12 +49,12 @@ pMap f (x:xs) = x' `par` xs' `pseq` x' : xs'
     x'  = force $ f x
     xs' = pMap f xs
 
---parMap :: NFData b => (a -> b) -> [a] -> [b]
---parMap _ [] = []
---parMap f (x:xs) = do
---            leftVar <- spawn $ parMap f xs 
---            left <- get leftVar
---            return $ (f x):left
+parMap :: NFData b => (a -> b) -> [a] -> Par [b]
+parMap _ [] = return []
+parMap f (x:xs) = do
+            leftVar <- spawn $ parMap f xs 
+            left <- get leftVar
+            return $ (f x):left
 
 map_chunked _ _ _ [] = []
 map_chunked chuckSize mapper f xs = foldr (++) [] l
@@ -89,6 +89,14 @@ epMap f (x:xs) = runEval $ do
     xs' <- rseq $ epMap f xs
     return (x' : xs')
 
+parMap2 :: NFData b => (a -> b) -> a -> [b]
+parMap2 _ [] = runPar $ return []
+parMap2 f (x:xs) = runPar $ do
+    i <- spawn $ f x
+    j <- spawn $ parMap2 f xs
+    a <- get i
+    b <- get j          
+    return (a : b)
 
 crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
 
