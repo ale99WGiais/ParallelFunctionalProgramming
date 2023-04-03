@@ -6,7 +6,6 @@ import Control.Parallel
 import Control.DeepSeq
 import Control.Monad
 import Control.Parallel.Strategies (using, parListChunk, rdeepseq)
-import Control.Monad.Par (get, spawn, runPar)
 
 -- code borrowed from the Stanford Course 240h (Functional Systems in Haskell)
 -- I suspect it comes from Bryan O'Sullivan, author of Criterion
@@ -97,9 +96,6 @@ chunksOf n [] = []
 chunksOf n xs = take n xs : chunksOf n (drop n xs)
 
 main = do
-  let numbers = take 1000000 $ cycle [1,123,123,12,44,532,434,56,234,24,653,45342,43,5475,4652,334,573,54653,4]
-  print $ parsort 100 $ take 100 numbers
-
   let (xs,ys) = splitAt 1500  (take 6000
                                (randoms (mkStdGen 211570155)) :: [Float] )
   -- handy (later) to give same input different parallel functions
@@ -112,50 +108,5 @@ main = do
   putStrLn $ "jack mean max:  " ++ show (maximum j)
   defaultMain
         [
-          --bench "jackknife" (nf (jackknife  mean) rs),
-          --bench "jackknife_pmap" (nf (jackknife_pmap  mean) rs),
-          --bench "jackknife_epmap" (nf (jackknife_epmap  mean) rs),
-          --bench "jackknife_strategy" (nf (jackknife_strategy  mean) rs),
-          bench "sort" (nf sort numbers),
-          bench "parsort" (nf (parsort 1000) numbers)
-        ]
-
-
-
-parsort :: Int -> [Integer] -> [Integer] 
-parsort thresh xs    = divConq indiv divide merge sort xs
-  where     
-    indiv xs = (length xs) <= thresh
-    divide xs = (as, bs) 
-      where 
-        n = (length xs) `div` 2
-        as = take n xs 
-        bs = drop n xs
-
-divConq :: NFData sol         
-  => (prob -> Bool)        -- indivisible?         
-  -> (prob -> (prob,prob)) -- split into subproblems         
-  -> (sol -> sol -> sol)   -- join solutions         
-  -> (prob -> sol)                 
-  -> (prob -> sol) 
-divConq indiv split join f prob  
-  = runPar $ go prob 
-  where    
-    go prob -- solve a subproblem      
-      | indiv prob = return (f prob)      
-      | otherwise = do          
-        let (a,b) = split prob          
-        i <- spawn $ go a          
-        j <- spawn $ go b          
-        a <- get i          
-        b <- get j          
-        return (join a b) 
-
-merge :: (Ord a) => [a] -> [a] -> [a]
-merge [] ys = ys
-merge xs [] = xs
-merge (x:xs) (y:ys) = (elem) : (merge xs' ys') where
-  elem = min x y
-  xs' = if x <= y then xs else (x:xs)
-  ys' = if x > y then ys else (y:ys)
-
+         bench "jackknife" (nf (jackknife_epmap  mean) rs)
+         ]
