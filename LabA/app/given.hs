@@ -97,8 +97,11 @@ chunksOf n [] = []
 chunksOf n xs = take n xs : chunksOf n (drop n xs)
 
 main = do
-  let numbers = take 1000000 $ cycle [1,123,123,12,44,532,434,56,234,24,653,45342,43,5475,4652,334,573,54653,4]
+  let numbers = map (`mod` 1000) $ take 1000000 (randoms (mkStdGen 211570155)) :: [Integer]
   print $ parsort 100 $ take 100 numbers
+
+  let numbers2 = map (`mod` 1000) $ take 10000000 (randoms (mkStdGen 211570155)) :: [Integer]
+  print $ parcountoccurrencies 100 (head numbers) numbers2
 
   let (xs,ys) = splitAt 1500  (take 6000
                                (randoms (mkStdGen 211570155)) :: [Float] )
@@ -116,8 +119,10 @@ main = do
           --bench "jackknife_pmap" (nf (jackknife_pmap  mean) rs),
           --bench "jackknife_epmap" (nf (jackknife_epmap  mean) rs),
           --bench "jackknife_strategy" (nf (jackknife_strategy  mean) rs),
-          bench "sort" (nf sort numbers),
-          bench "parsort" (nf (parsort 1000) numbers)
+          --bench "sort" (nf sort numbers),
+          --bench "parsort" (nf (parsort 1000) numbers),
+          bench "countoccurrencies" (nf (countoccurrencies 0) numbers2),
+          bench "parcountoccurrencies" (nf (parcountoccurrencies 1000000 0) numbers2)
         ]
 
 
@@ -158,4 +163,19 @@ merge (x:xs) (y:ys) = (elem) : (merge xs' ys') where
   elem = min x y
   xs' = if x <= y then xs else (x:xs)
   ys' = if x > y then ys else (y:ys)
+
+
+
+countoccurrencies :: (Eq a) => a -> [a] -> Int
+countoccurrencies e = sum . map (\x -> if x == e then 1 else 0)
+
+parcountoccurrencies :: (Eq a) => Int -> a -> [a] -> Int
+parcountoccurrencies thresh e = divConq indiv divide (+) (countoccurrencies e)
+  where     
+    indiv xs = (length xs) <= thresh
+    divide xs = (as, bs) 
+      where 
+        n = (length xs) `div` 2
+        as = take n xs 
+        bs = drop n xs
 
