@@ -35,7 +35,7 @@ jackknife_pmap :: NFData b => ([a] -> b) -> [a] -> [b]
 jackknife_pmap f = (map_chunked 20 pMap) f . resamples 500
 
 jackknife_epmap :: NFData b => ([a] -> b) -> [a] -> [b]
-jackknife_epmap f l = runEval $ (epMap f . resamples 500) l
+jackknife_epmap f l = (epMap f . resamples 500) l
  
 pMap :: NFData b => (a -> b) -> [a] -> [b]
 pMap _ [] = []
@@ -77,11 +77,11 @@ rpar a = a `par` Done a
 rseq :: a -> Eval a
 rseq a = a `pseq` Done a
 
-epMap :: NFData b => (a -> b) -> [a] -> Eval [b]
-epMap _ [] = return []
-epMap f (x:xs) = do
+epMap :: NFData b => (a -> b) -> [a] -> [b]
+epMap _ [] = runEval $ return []
+epMap f (x:xs) = runEval $ do
     x'  <- rpar $ force (f x)
-    xs' <- epMap f xs
+    xs' <- rseq $ epMap f xs
     return (x' : xs')
 
 
