@@ -5,6 +5,7 @@ import Criterion.Main
 import Control.Parallel
 import Control.DeepSeq
 import Control.Monad
+import Control.Parallel.Strategies (using, parListChunk, rdeepseq)
 
 -- code borrowed from the Stanford Course 240h (Functional Systems in Haskell)
 -- I suspect it comes from Bryan O'Sullivan, author of Criterion
@@ -36,6 +37,9 @@ jackknife_pmap f = (map_chunked 20 pMap) f . resamples 500
 
 jackknife_epmap :: NFData b => ([a] -> b) -> [a] -> [b]
 jackknife_epmap f l = (epMap f . resamples 500) l
+
+jackknife_strategy :: NFData b => ([a] -> b) -> [a] -> [b]
+jackknife_strategy f l = (map f . resamples 500 ) l `using` parListChunk 20 rdeepseq
  
 pMap :: NFData b => (a -> b) -> [a] -> [b]
 pMap _ [] = []
