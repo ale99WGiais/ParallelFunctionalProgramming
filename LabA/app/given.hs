@@ -89,14 +89,14 @@ epMap f (x:xs) = runEval $ do
     xs' <- rseq $ epMap f xs
     return (x' : xs')
 
-parMap2 :: NFData b => (a -> b) -> a -> [b]
-parMap2 _ [] = runPar $ return []
-parMap2 f (x:xs) = runPar $ do
-    i <- spawn $ f x
-    j <- spawn $ parMap2 f xs
-    a <- get i
-    b <- get j          
-    return (a : b)
+-- parMap2 :: NFData b => (a -> b) -> [a] -> [b]
+-- parMap2 _ [] = runPar $ return []
+-- parMap2 f (x:xs) = runPar $ do
+--     i <- spawn $ f x
+--     j <- spawn $ parMap2 f xs
+--     a <- get i
+--     b <- get j          
+--     return (a : b)
 
 crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
 
