@@ -108,8 +108,9 @@ main = do
   let numbers = map (`mod` 1000) $ take 1000000 (randoms (mkStdGen 211570155)) :: [Integer]
   print $ parsort 100 $ take 100 numbers
 
-  let numbers2 = map (`mod` 1000) $ take 10000000 (randoms (mkStdGen 211570155)) :: [Integer]
-  print $ parcountoccurrencies 100 (head numbers) numbers2
+  --numbers2 are all 1 <= x <= 1000000001 (collatz holds on positive integers)
+  let numbers2 = map ((+1) . (`mod` 1000000000)) $ take 1000000 (randoms (mkStdGen 211570155)) :: [Int]    
+  print $ parensurecollatz 100 numbers2
 
   let (xs,ys) = splitAt 1500  (take 6000
                                (randoms (mkStdGen 211570155)) :: [Float] )
@@ -127,58 +128,88 @@ main = do
           --bench "jackknife_pmap" (nf (jackknife_pmap  mean) rs),
           --bench "jackknife_epmap" (nf (jackknife_epmap  mean) rs),
           --bench "jackknife_strategy" (nf (jackknife_strategy  mean) rs),
-          --bench "sort" (nf sort numbers),
-          --bench "parsort" (nf (parsort 1000) numbers),
-          bench "countoccurrencies" (nf (countoccurrencies 0) numbers2),
-          bench "parcountoccurrencies" (nf (parcountoccurrencies 1000000 0) numbers2)
+          bench "sort" (nf sort numbers),
+          bench "parsort10" (nf (parsort 10) numbers),
+          bench "parsort100" (nf (parsort 100) numbers),
+          bench "parsort1000" (nf (parsort 1000) numbers),
+          bench "parsort10000" (nf (parsort 10000) numbers)
+          --bench "ensurecollatz" (nf ensurecollatz numbers2),
+          --bench "parensurecollatz10" (nf (parensurecollatz 10) numbers2),
+          --bench "parensurecollatz100" (nf (parensurecollatz 100) numbers2),
+          --bench "parensurecollatz1000" (nf (parensurecollatz 1000) numbers2),
+          --bench "parensurecollatz10000" (nf (parensurecollatz 10000) numbers2)
         ]
 
 
 
-parsort :: Int -> [Integer] -> [Integer] 
+
+----------------------------------------------------------------
+-------- Lab A Assignment 2 Part 1 (par merge sort) --------
+----------------------------------------------------------------
+
+-- divide and conquer framework
+divConq :: NFData sol         
+  => (prob -> Bool)        -- test if indivisible     
+  -> (prob -> (prob,prob)) -- split into subproblems         
+  -> (sol -> sol -> sol)   -- join solutions         
+  -> (prob -> sol)                 
+  -> (prob -> sol) 
+divConq indiv split join f prob = runPar $ solve prob 
+  where    
+    solve prob -- solve a subproblem      
+      | indiv prob = return (f prob)      
+      | otherwise = do          
+        let (a,b) = split prob          
+        i <- spawn $ solve a          
+        j <- spawn $ solve b          
+        a <- get i          
+        b <- get j          
+        return (join a b) 
+
+--parallelize merge sort using divide and conquer with threshold on min list length
+--haskell's sort function used on irreducible subproblems
+--merge used as aggregating function
+parsort :: (Ord a, NFData a) => Int -> [a] -> [a] 
 parsort thresh xs    = divConq indiv divide merge sort xs
   where     
+    -- "merge" merges two ordered lists
+    merge :: (Ord a) => [a] -> [a] -> [a]  
+    merge [] ys = ys
+    merge xs [] = xs
+    merge (x:xs) (y:ys) = (elem) : (merge xs' ys') where
+      elem = min x y
+      xs' = if x <= y then xs else (x:xs)  --if heads are equal, take the elem from first list
+      ys' = if x > y then ys else (y:ys)
+
     indiv xs = (length xs) <= thresh
     divide xs = (as, bs) 
       where 
         n = (length xs) `div` 2
         as = take n xs 
         bs = drop n xs
+      
 
-divConq :: NFData sol         
-  => (prob -> Bool)        -- indivisible?         
-  -> (prob -> (prob,prob)) -- split into subproblems         
-  -> (sol -> sol -> sol)   -- join solutions         
-  -> (prob -> sol)                 
-  -> (prob -> sol) 
-divConq indiv split join f prob  
-  = runPar $ go prob 
-  where    
-    go prob -- solve a subproblem      
-      | indiv prob = return (f prob)      
-      | otherwise = do          
-        let (a,b) = split prob          
-        i <- spawn $ go a          
-        j <- spawn $ go b          
-        a <- get i          
-        b <- get j          
-        return (join a b) 
+----------------------------------------------------------------
+-------- Lab A Assignment 2 Part 2 (collatz conjecture) --------
+----------------------------------------------------------------
 
-merge :: (Ord a) => [a] -> [a] -> [a]
-merge [] ys = ys
-merge xs [] = xs
-merge (x:xs) (y:ys) = (elem) : (merge xs' ys') where
-  elem = min x y
-  xs' = if x <= y then xs else (x:xs)
-  ys' = if x > y then ys else (y:ys)
+--collatz conjecture
+collatz :: Int -> Int
+collatz x 
+  | x <= 0 = 0   --wrong result
+  | x == 1 = 1   --expected result
+  | otherwise = if (x `mod` 2 == 0) then collatz (x `div` 2) else collatz (3 * x + 1)  --recursion
 
+--ensure that collatz conjecture holds for each starting value in l 
+--(if conjecture does not hold, then either the function never terminates or sum < lenght l)
+ensurecollatz :: [Int] -> Bool
+ensurecollatz l = (length l) == (sum $ map collatz l)
 
-
-countoccurrencies :: (Eq a) => a -> [a] -> Int
-countoccurrencies e = sum . map (\x -> if x == e then 1 else 0)
-
-parcountoccurrencies :: (Eq a) => Int -> a -> [a] -> Int
-parcountoccurrencies thresh e = divConq indiv divide (+) (countoccurrencies e)
+--parallelize using divide and conquer with threshold on min list length
+--conjecture holds if holds on both subproblems (&&)
+--split list in half
+parensurecollatz :: Int -> [Int] -> Bool
+parensurecollatz thresh = divConq indiv divide (&&) ensurecollatz
   where     
     indiv xs = (length xs) <= thresh
     divide xs = (as, bs) 
