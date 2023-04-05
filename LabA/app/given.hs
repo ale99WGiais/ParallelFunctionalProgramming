@@ -29,25 +29,85 @@ resamples k xs =
     zipWith (++) (inits xs) (map (drop k) (tails xs))
 
 
+main = do
+  let numbers = map (`mod` 1000) $ take 1000000 (randoms (mkStdGen 211570155)) :: [Integer]
+  print $ parsort 100 $ take 100 numbers
+
+  --numbers2 are all 1 <= x <= 1000000001 (collatz holds on positive integers)
+  let numbers2 = map ((+1) . (`mod` 1000000000)) $ take 1000000 (randoms (mkStdGen 211570155)) :: [Int]    
+  print $ parensurecollatz 100 numbers2
+
+  let (xs,ys) = splitAt 1500  (take 6000
+                               (randoms (mkStdGen 211570155)) :: [Float] )
+  -- handy (later) to give same input different parallel functions
+
+  let rs = crud xs ++ ys
+  putStrLn $ "sample mean:    " ++ show (mean rs)
+
+  let j = jackknife_epmap 1 mean rs :: [Float]
+  putStrLn $ "jack mean min:  " ++ show (minimum j)
+  putStrLn $ "jack mean max:  " ++ show (maximum j)
+  defaultMain
+        [
+          bench "jackknife" (nf (jackknife mean) rs),
+          bench "jackknife_pmap" (nf (jackknife_pmap 1 mean) rs),
+          bench "jackknife_pmap5" (nf (jackknife_pmap 5 mean) rs),
+          bench "jackknife_pmap10" (nf (jackknife_pmap 10  mean) rs),
+          bench "jackknife_pmap20" (nf (jackknife_pmap 20 mean) rs),
+          bench "jackknife_pmap40" (nf (jackknife_pmap 40 mean) rs)
+          --bench "jackknife_epmap" (nf (jackknife_epmap  mean) rs)
+          --bench "jackknife_strategy" (nf (jackknife_strategy  mean) rs),
+          --bench "sort" (nf sort numbers),
+          --bench "parsort10" (nf (parsort 10) numbers),
+          --bench "parsort100" (nf (parsort 100) numbers),
+          --bench "parsort1000" (nf (parsort 1000) numbers),
+          --bench "parsort10000" (nf (parsort 10000) numbers),
+          --bench "ensurecollatz" (nf ensurecollatz numbers2),
+          --bench "parensurecollatz10" (nf (parensurecollatz 10) numbers2),
+          --bench "parensurecollatz100" (nf (parensurecollatz 100) numbers2),
+          --bench "parensurecollatz1000" (nf (parensurecollatz 1000) numbers2),
+          --bench "parensurecollatz10000" (nf (parensurecollatz 10000) numbers2)
+        ]
+
+
+
+
+----------------------------------------------------------------
+-------- Lab A Assignment 1 Part 1 (jacknife) --------
+----------------------------------------------------------------
+
+
 jackknife :: ([a] -> b) -> [a] -> [b]
 jackknife f = map f . resamples 500
 
-jackknife_pmap :: NFData b => ([a] -> b) -> [a] -> [b]
---jackknife_pmap f = pMap f . resamples 500
-jackknife_pmap f = (map_chunked 20 pMap) f . resamples 500
+jackknife_pmap :: NFData b => Int -> ([a] -> b) -> [a] -> [b]
+jackknife_pmap 1 f = pMap f . resamples 500                           --no granularity control 
+jackknife_pmap thresh f = (map_chunked thresh pMap) f . resamples 500     --granularity control
 
-jackknife_epmap :: NFData b => ([a] -> b) -> [a] -> [b]
-jackknife_epmap f l = (epMap f . resamples 500) l
-
-jackknife_strategy :: NFData b => ([a] -> b) -> [a] -> [b]
-jackknife_strategy f l = (map f . resamples 500 ) l `using` parListChunk 20 rdeepseq
- 
 pMap :: NFData b => (a -> b) -> [a] -> [b]
 pMap _ [] = []
 pMap f (x:xs) = x' `par` xs' `pseq` x' : xs'
   where
     x'  = force $ f x
     xs' = pMap f xs
+
+map_chunked _ _ _ [] = []
+map_chunked chuckSize mapper f xs = foldr (++) [] l
+  where
+    l = mapper (map f) (chunksOf chuckSize xs)
+
+  
+jackknife_epmap :: NFData b => Int -> ([a] -> b) -> [a] -> [b]
+jackknife_epmap 1 f = epMap f . resamples 500                           --no granularity control 
+jackknife_epmap thresh f = (map_chunked thresh epMap) f . resamples 500     --granularity control
+
+
+
+
+jackknife_strategy :: NFData b => ([a] -> b) -> [a] -> [b]
+jackknife_strategy f l = (map f . resamples 500 ) l `using` parListChunk 20 rdeepseq
+ 
+
 
 parMap :: NFData b => (a -> b) -> [a] -> Par [b]
 parMap _ [] = return []
@@ -56,10 +116,6 @@ parMap f (x:xs) = do
             left <- get leftVar
             return $ (f x):left
 
-map_chunked _ _ _ [] = []
-map_chunked chuckSize mapper f xs = foldr (++) [] l
-  where
-    l = mapper (map f) (chunksOf chuckSize xs)
 
 data Eval a = Done a
 
@@ -89,58 +145,11 @@ epMap f (x:xs) = runEval $ do
     xs' <- rseq $ epMap f xs
     return (x' : xs')
 
--- parMap2 :: NFData b => (a -> b) -> [a] -> [b]
--- parMap2 _ [] = runPar $ return []
--- parMap2 f (x:xs) = runPar $ do
---     i <- spawn $ f x
---     j <- spawn $ parMap2 f xs
---     a <- get i
---     b <- get j          
---     return (a : b)
-
 crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
 
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf n [] = []
 chunksOf n xs = take n xs : chunksOf n (drop n xs)
-
-main = do
-  let numbers = map (`mod` 1000) $ take 1000000 (randoms (mkStdGen 211570155)) :: [Integer]
-  print $ parsort 100 $ take 100 numbers
-
-  --numbers2 are all 1 <= x <= 1000000001 (collatz holds on positive integers)
-  let numbers2 = map ((+1) . (`mod` 1000000000)) $ take 1000000 (randoms (mkStdGen 211570155)) :: [Int]    
-  print $ parensurecollatz 100 numbers2
-
-  let (xs,ys) = splitAt 1500  (take 6000
-                               (randoms (mkStdGen 211570155)) :: [Float] )
-  -- handy (later) to give same input different parallel functions
-
-  let rs = crud xs ++ ys
-  putStrLn $ "sample mean:    " ++ show (mean rs)
-
-  let j = jackknife_epmap mean rs :: [Float]
-  putStrLn $ "jack mean min:  " ++ show (minimum j)
-  putStrLn $ "jack mean max:  " ++ show (maximum j)
-  defaultMain
-        [
-          --bench "jackknife" (nf (jackknife  mean) rs),
-          --bench "jackknife_pmap" (nf (jackknife_pmap  mean) rs),
-          --bench "jackknife_epmap" (nf (jackknife_epmap  mean) rs),
-          --bench "jackknife_strategy" (nf (jackknife_strategy  mean) rs),
-          bench "sort" (nf sort numbers),
-          bench "parsort10" (nf (parsort 10) numbers),
-          bench "parsort100" (nf (parsort 100) numbers),
-          bench "parsort1000" (nf (parsort 1000) numbers),
-          bench "parsort10000" (nf (parsort 10000) numbers)
-          --bench "ensurecollatz" (nf ensurecollatz numbers2),
-          --bench "parensurecollatz10" (nf (parensurecollatz 10) numbers2),
-          --bench "parensurecollatz100" (nf (parensurecollatz 100) numbers2),
-          --bench "parensurecollatz1000" (nf (parensurecollatz 1000) numbers2),
-          --bench "parensurecollatz10000" (nf (parensurecollatz 10000) numbers2)
-        ]
-
-
 
 
 ----------------------------------------------------------------
