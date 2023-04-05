@@ -28,6 +28,9 @@ resamples k xs =
     take (length xs - k) $
     zipWith (++) (inits xs) (map (drop k) (tails xs))
 
+    
+crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
+
 
 main = do
   let numbers = map (`mod` 1000) $ take 1000000 (randoms (mkStdGen 211570155)) :: [Integer]
@@ -49,14 +52,27 @@ main = do
   putStrLn $ "jack mean max:  " ++ show (maximum j)
   defaultMain
         [
-          bench "jackknife" (nf (jackknife mean) rs),
-          bench "jackknife_pmap" (nf (jackknife_pmap 1 mean) rs),
-          bench "jackknife_pmap5" (nf (jackknife_pmap 5 mean) rs),
-          bench "jackknife_pmap10" (nf (jackknife_pmap 10  mean) rs),
-          bench "jackknife_pmap20" (nf (jackknife_pmap 20 mean) rs),
-          bench "jackknife_pmap40" (nf (jackknife_pmap 40 mean) rs)
-          --bench "jackknife_epmap" (nf (jackknife_epmap  mean) rs)
-          --bench "jackknife_strategy" (nf (jackknife_strategy  mean) rs),
+          --bench "jackknife" (nf (jackknife mean) rs),
+          --bench "jackknife_pmap" (nf (jackknife_pmap 1 mean) rs),
+          --bench "jackknife_pmap5" (nf (jackknife_pmap 5 mean) rs),
+          --bench "jackknife_pmap10" (nf (jackknife_pmap 10  mean) rs),
+          --bench "jackknife_pmap20" (nf (jackknife_pmap 20 mean) rs),
+          --bench "jackknife_pmap40" (nf (jackknife_pmap 40 mean) rs)
+          --bench "jackknife_epmap" (nf (jackknife_epmap 1 mean) rs),
+          --bench "jackknife_epmap5" (nf (jackknife_epmap 5 mean) rs),
+          --bench "jackknife_epmap10" (nf (jackknife_epmap 10  mean) rs),
+          --bench "jackknife_epmap20" (nf (jackknife_epmap 20 mean) rs),
+          --bench "jackknife_epmap40" (nf (jackknife_epmap 40 mean) rs),
+          --bench "jackknife_strategy" (nf (jackknife_strategy 1 mean) rs),
+          --bench "jackknife_strategy5" (nf (jackknife_strategy 5 mean) rs),
+          --bench "jackknife_strategy10" (nf (jackknife_strategy 10 mean) rs),
+          --bench "jackknife_strategy20" (nf (jackknife_strategy 20 mean) rs),
+          --bench "jackknife_strategy40" (nf (jackknife_strategy 40 mean) rs),
+          bench "jackknife_parmap" (nf (jackknife_parmap 1 mean) rs),
+          bench "jackknife_parmap5" (nf (jackknife_parmap 5 mean) rs),
+          bench "jackknife_parmap10" (nf (jackknife_parmap 10  mean) rs),
+          bench "jackknife_parmap20" (nf (jackknife_parmap 20 mean) rs),
+          bench "jackknife_parmap40" (nf (jackknife_parmap 40 mean) rs)
           --bench "sort" (nf sort numbers),
           --bench "parsort10" (nf (parsort 10) numbers),
           --bench "parsort100" (nf (parsort 100) numbers),
@@ -72,9 +88,9 @@ main = do
 
 
 
-----------------------------------------------------------------
--------- Lab A Assignment 1 Part 1 (jacknife) --------
-----------------------------------------------------------------
+-------------------------------------------------------------------------------------
+-------- Lab A Assignment 1 Part 1 (jacknife + pMap + map_chunked) ------------------
+-------------------------------------------------------------------------------------
 
 
 jackknife :: ([a] -> b) -> [a] -> [b]
@@ -100,26 +116,13 @@ map_chunked chuckSize mapper f xs = foldr (++) [] l
     chunksOf n [] = []
     chunksOf n xs = take n xs : chunksOf n (drop n xs)
 
-
+------------------------------------------------------------------------
+-------- Lab A Assignment 1 Part 2 (jacknife + epMap) ------------------
+------------------------------------------------------------------------
   
 jackknife_epmap :: NFData b => Int -> ([a] -> b) -> [a] -> [b]
 jackknife_epmap 1 f = epMap f . resamples 500                           --no granularity control 
 jackknife_epmap thresh f = (map_chunked thresh epMap) f . resamples 500     --granularity control
-
-
-
-
-jackknife_strategy :: NFData b => ([a] -> b) -> [a] -> [b]
-jackknife_strategy f l = (map f . resamples 500 ) l `using` parListChunk 20 rdeepseq
- 
-
-
-parMap :: NFData b => (a -> b) -> [a] -> Par [b]
-parMap _ [] = return []
-parMap f (x:xs) = do
-            leftVar <- spawn $ parMap f xs 
-            left <- get leftVar
-            return $ (f x):left
 
 
 data Eval a = Done a
@@ -150,12 +153,39 @@ epMap f (x:xs) = runEval $ do
     xs' <- rseq $ epMap f xs
     return (x' : xs')
 
-crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
+
+
+------------------------------------------------------------------------
+-------- Lab A Assignment 1 Part 3 (jacknife + strategy) ---------------
+------------------------------------------------------------------------
+
+jackknife_strategy :: NFData b => Int -> ([a] -> b) -> [a] -> [b]
+jackknife_strategy thresh f l = (map f . resamples 500 ) l `using` parListChunk thresh rdeepseq
+
+
+------------------------------------------------------------------------
+-------- Lab A Assignment 1 Part 4 (jacknife + Par monad) --------------
+------------------------------------------------------------------------
+
+jackknife_parmap :: NFData b => Int -> ([a] -> b) -> [a] -> [b]
+jackknife_parmap 1 f = parMap f . resamples 500                           --no granularity control 
+jackknife_parmap thresh f = (map_chunked thresh parMap) f . resamples 500     --granularity control
+
+parMap :: NFData b => (a -> b) -> [a] -> [b]
+parMap _ [] = []
+parMap f xs = runPar $ temp f xs
+  where
+    temp :: NFData b => (a -> b) -> [a] -> Par [b]
+    temp _ [] = return []
+    temp f (x:xs) = do
+      othersVar <- spawn $ temp f xs 
+      others <- get othersVar
+      return $ (f x):others
 
 
 
 ----------------------------------------------------------------
--------- Lab A Assignment 2 Part 1 (par merge sort) --------
+-------- Lab A Assignment 2 Part 1 (par merge sort) ------------
 ----------------------------------------------------------------
 
 -- divide and conquer framework
