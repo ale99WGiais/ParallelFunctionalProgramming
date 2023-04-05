@@ -95,6 +95,11 @@ map_chunked _ _ _ [] = []
 map_chunked chuckSize mapper f xs = foldr (++) [] l
   where
     l = mapper (map f) (chunksOf chuckSize xs)
+  
+    chunksOf :: Int -> [a] -> [[a]] --divides a list in chunks of n elements
+    chunksOf n [] = []
+    chunksOf n xs = take n xs : chunksOf n (drop n xs)
+
 
   
 jackknife_epmap :: NFData b => Int -> ([a] -> b) -> [a] -> [b]
@@ -147,9 +152,6 @@ epMap f (x:xs) = runEval $ do
 
 crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
 
-chunksOf :: Int -> [a] -> [[a]]
-chunksOf n [] = []
-chunksOf n xs = take n xs : chunksOf n (drop n xs)
 
 
 ----------------------------------------------------------------
