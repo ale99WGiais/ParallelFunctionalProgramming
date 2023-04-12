@@ -22,4 +22,5 @@ cabal.project.local~
 .ghc.environment.*
 .stack-work
 stack.yaml.lock
+parconc*
 
