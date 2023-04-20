@@ -15,6 +15,7 @@ pmap(Mapper, Xs) ->
   [receive {Pid, Result} -> Result end || Pid <- [spawn(fun() -> Parent ! {self(), Mapper(X)} end) || X <- Xs]].
 
 
+
 %% %% generators
 
 %% matrix(M,N) ->
@@ -226,6 +227,25 @@ solve_refined(M) ->
 	    solve_one(guesses(M))
     end.
 
+
+pmap_fetchone(Mapper, Xs)->
+  Parent = self(),  
+  _ = [spawn(fun() -> Parent ! Mapper(X) end) || X <- Xs],
+  fetchone(length(Xs)).
+
+fetchone(0) -> exit(no_solution);
+fetchone(NumWaiting) ->
+    receive Result -> 
+        case Result of
+            {'EXIT',no_solution} -> fetchone(NumWaiting - 1);
+            _ -> Result 
+        end 
+    end.
+
+psolve_one(Ms) ->
+    pmap_fetchone(fun solve_refined/1, Ms).
+
+
 solve_one([]) ->
     exit(no_solution);
 solve_one([M]) ->
@@ -253,12 +273,12 @@ repeat(F) ->
 
 %% parallel benchmarks 
 %% parallel map used to solve all benchmarks in parallel
-%%benchmarks(Puzzles) ->
-%%    pmap_unordered(fun({Name, M}) -> {Name,bm(fun()->solve(M) end)} end, Puzzles).
+benchmarks(Puzzles) ->
+    pmap_unordered(fun({Name, M}) -> {Name,bm(fun()->solve(M) end)} end, Puzzles).
 
 %% sequential benchmarks (provided)
-benchmarks(Puzzles) ->
-    [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
+%%benchmarks(Puzzles) ->
+%%    [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
 
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
