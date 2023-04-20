@@ -230,15 +230,15 @@ solve_refined(M) ->
 
 pmap_fetchone(Mapper, Xs)->
   Parent = self(),  
-  _ = [spawn(fun() -> Parent ! Mapper(X) end) || X <- Xs],
-  fetchone(length(Xs)).
+  Pids = [spawn(fun() -> Parent ! Mapper(X) end) || X <- Xs],
+  fetchone(length(Xs), Pids).
 
-fetchone(0) -> exit(no_solution);
-fetchone(NumWaiting) ->
+fetchone(0, Pids) -> exit(no_solution);
+fetchone(NumWaiting, Pids) ->
     receive Result -> 
         case Result of
-            {'EXIT', no_solution} -> fetchone(NumWaiting - 1);
-            _ -> Result 
+            {'EXIT', no_solution} -> fetchone(NumWaiting - 1, Pids);
+            _ -> [exit(Pid, kill) || Pid <- Pids], Result 
         end 
     end.
 
@@ -252,7 +252,7 @@ solve_one([M]) ->
     solve_refined(M);
 solve_one([M|Ms]) ->
     case catch solve_refined(M) of
-	{'EXIT',no_solution} ->
+	{'EXIT', no_solution} ->
 	    solve_one(Ms);
 	Solution ->
 	    Solution
