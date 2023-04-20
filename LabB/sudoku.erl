@@ -2,6 +2,18 @@
 %-include_lib("eqc/include/eqc.hrl").
 -compile(export_all).
 
+
+%% parallel map functions
+%% pmap retains order, pmap_unordered doesn't preserve order (results should be ordered by end time)
+pmap_unordered(Mapper, Xs) ->
+  Parent = self(),  
+  [receive Result -> Result end || _ <- [spawn(fun() -> Parent ! Mapper(X) end) || X <- Xs]].
+
+pmap(Mapper, Xs) ->
+  Parent = self(),  
+  [receive {Pid, Result} -> Result end || Pid <- [spawn(fun() -> Parent ! {self(), Mapper(X)} end) || X <- Xs]].
+
+
 %% %% generators
 
 %% matrix(M,N) ->
@@ -222,6 +234,7 @@ solve_one([M|Ms]) ->
 
 %% benchmarks
 
+%% -define(EXECUTIONS,100).
 -define(EXECUTIONS,100).
 
 bm(F) ->
@@ -231,8 +244,15 @@ bm(F) ->
 repeat(F) ->
     [F() || _ <- lists:seq(1,?EXECUTIONS)].
 
+
+%% parallel benchmarks 
+%% parallel map used to solve all benchmarks in parallel
 benchmarks(Puzzles) ->
-    [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
+    pmap_unordered(fun({Name, M}) -> {Name,bm(fun()->solve(M) end)} end, Puzzles).
+
+%% sequential benchmarks (provided)
+%%benchmarks(Puzzles) ->
+%%    [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
 
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
