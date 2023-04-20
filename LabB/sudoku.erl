@@ -5,6 +5,7 @@
 
 %% parallel map functions
 %% pmap retains order, pmap_unordered doesn't preserve order (results should be ordered by end time)
+%% pmap retains order because it filters the next message to receive by Pid, and Pid values are given in order by list comprehension
 pmap_unordered(Mapper, Xs) ->
   Parent = self(),  
   [receive Result -> Result end || _ <- [spawn(fun() -> Parent ! Mapper(X) end) || X <- Xs]].
