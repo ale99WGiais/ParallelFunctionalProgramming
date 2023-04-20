@@ -6,7 +6,7 @@ import Control.Parallel
 import Control.DeepSeq
 import Control.Monad
 import Control.Parallel.Strategies (using, parListChunk, rdeepseq)
-import Control.Monad.Par (get, spawn, runPar, Par)
+import Control.Monad.Par (get, spawn, spawnP, runPar, Par)
 
 -- code borrowed from the Stanford Course 240h (Functional Systems in Haskell)
 -- I suspect it comes from Bryan O'Sullivan, author of Criterion
@@ -47,17 +47,17 @@ main = do
   let rs = crud xs ++ ys
   putStrLn $ "sample mean:    " ++ show (mean rs)
 
-  let j = jackknife_epmap 1 mean rs :: [Float]
+  let j = jackknife_parmap 1 mean rs :: [Float]
   putStrLn $ "jack mean min:  " ++ show (minimum j)
   putStrLn $ "jack mean max:  " ++ show (maximum j)
   defaultMain
         [
-          --bench "jackknife" (nf (jackknife mean) rs),
+          bench "jackknife" (nf (jackknife mean) rs),
           --bench "jackknife_pmap" (nf (jackknife_pmap 1 mean) rs),
           --bench "jackknife_pmap5" (nf (jackknife_pmap 5 mean) rs),
           --bench "jackknife_pmap10" (nf (jackknife_pmap 10  mean) rs),
           --bench "jackknife_pmap20" (nf (jackknife_pmap 20 mean) rs),
-          --bench "jackknife_pmap40" (nf (jackknife_pmap 40 mean) rs)
+          --bench "jackknife_pmap40" (nf (jackknife_pmap 40 mean) rs),
           --bench "jackknife_epmap" (nf (jackknife_epmap 1 mean) rs),
           --bench "jackknife_epmap5" (nf (jackknife_epmap 5 mean) rs),
           --bench "jackknife_epmap10" (nf (jackknife_epmap 10  mean) rs),
@@ -177,10 +177,11 @@ parMap f xs = runPar $ temp f xs
   where
     temp :: NFData b => (a -> b) -> [a] -> Par [b]
     temp _ [] = return []
-    temp f (x:xs) = do
-      othersVar <- spawn $ temp f xs 
-      others <- get othersVar
-      return $ (f x):others
+    temp f (a:as) = do
+      b <- spawnP (f a)
+      bs <- temp f as
+      b_get <- get b
+      return (b_get:bs)
 
 
 
