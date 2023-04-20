@@ -224,7 +224,7 @@ solve_refined(M) ->
 	true ->
 	    M;
 	false ->
-	    solve_one(guesses(M))
+	    psolve_one(guesses(M))
     end.
 
 
@@ -237,7 +237,7 @@ fetchone(0) -> exit(no_solution);
 fetchone(NumWaiting) ->
     receive Result -> 
         case Result of
-            {'EXIT',no_solution} -> fetchone(NumWaiting - 1);
+            {'EXIT', no_solution} -> fetchone(NumWaiting - 1);
             _ -> Result 
         end 
     end.
@@ -261,7 +261,7 @@ solve_one([M|Ms]) ->
 %% benchmarks
 
 %% -define(EXECUTIONS,100).
--define(EXECUTIONS,100).
+-define(EXECUTIONS,10).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
@@ -273,12 +273,12 @@ repeat(F) ->
 
 %% parallel benchmarks 
 %% parallel map used to solve all benchmarks in parallel
-benchmarks(Puzzles) ->
-    pmap_unordered(fun({Name, M}) -> {Name,bm(fun()->solve(M) end)} end, Puzzles).
+%benchmarks(Puzzles) ->
+%    pmap_unordered(fun({Name, M}) -> {Name,bm(fun()->solve(M) end)} end, Puzzles).
 
 %% sequential benchmarks (provided)
-%%benchmarks(Puzzles) ->
-%%    [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
+benchmarks(Puzzles) ->
+    [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
 
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
