@@ -110,8 +110,13 @@ refine(M) ->
 	    refine(NewM)
     end.
 
+
 refine_rows(M) ->
     lists:map(fun refine_row/1,M).
+
+%% parallel refine_rows (did not finish in 5 min)
+%%refine_rows(M) ->
+%%    pmap(fun refine_row/1,M).
 
 refine_row(Row) ->
     Entries = entries(Row),
@@ -248,12 +253,12 @@ repeat(F) ->
 
 %% parallel benchmarks 
 %% parallel map used to solve all benchmarks in parallel
-benchmarks(Puzzles) ->
-    pmap_unordered(fun({Name, M}) -> {Name,bm(fun()->solve(M) end)} end, Puzzles).
+%%benchmarks(Puzzles) ->
+%%    pmap_unordered(fun({Name, M}) -> {Name,bm(fun()->solve(M) end)} end, Puzzles).
 
 %% sequential benchmarks (provided)
-%%benchmarks(Puzzles) ->
-%%    [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
+benchmarks(Puzzles) ->
+    [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
 
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
