@@ -224,7 +224,15 @@ solve_refined(M) ->
 	true ->
 	    M;
 	false ->
-	    solve_one(guesses(M))
+	    psolve_one(guesses(M))
+    end.
+
+
+
+flush() ->
+    receive 
+        _ -> flush()
+    after 0 -> ok
     end.
 
 
@@ -238,7 +246,7 @@ fetchone(NumWaiting, Pids) ->
     receive Result -> 
         case Result of
             {'EXIT', no_solution} -> fetchone(NumWaiting - 1, Pids);
-            _ -> [exit(Pid, kill) || Pid <- Pids], Result 
+            _ -> [exit(Pid, kill) || Pid <- Pids], catch flush(), Result 
         end 
     end.
 
@@ -261,7 +269,7 @@ solve_one([M|Ms]) ->
 %% benchmarks
 
 %% -define(EXECUTIONS,100).
--define(EXECUTIONS,100).
+-define(EXECUTIONS,10).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
