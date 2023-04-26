@@ -8,11 +8,11 @@
 %% pmap retains order because it filters the next message to receive by Pid, and Pid values are given in order by list comprehension
 pmap_unordered(Mapper, Xs) ->
   Parent = self(),  
-  [receive Result -> Result end || _ <- [spawn(fun() -> Parent ! Mapper(X) end) || X <- Xs]].
+  [receive Result -> Result end || _ <- [spawn(fun() -> Parent ! catch Mapper(X) end) || X <- Xs]].
 
 pmap(Mapper, Xs) ->
   Parent = self(),  
-  [receive {Pid, Result} -> Result end || Pid <- [spawn(fun() -> Parent ! {self(), Mapper(X)} end) || X <- Xs]].
+  [receive {Pid, Result} -> Result end || Pid <- [spawn(fun() -> Parent ! {self(), catch Mapper(X)} end) || X <- Xs]].
 
 
 
@@ -116,8 +116,8 @@ refine_rows(M) ->
     lists:map(fun refine_row/1,M).
 
 %% parallel refine_rows (did not finish in 5 min)
-%%refine_rows(M) ->
-%%    pmap(fun refine_row/1,M).
+%refine_rows(M) ->
+%    pmap(fun refine_row/1,M).
 
 refine_row(Row) ->
     Entries = entries(Row),
@@ -224,7 +224,7 @@ solve_refined(M) ->
 	true ->
 	    M;
 	false ->
-	    psolve_one(guesses(M))
+	    solve_one(guesses(M))
     end.
 
 
@@ -261,7 +261,7 @@ solve_one([M|Ms]) ->
 %% benchmarks
 
 %% -define(EXECUTIONS,100).
--define(EXECUTIONS,10).
+-define(EXECUTIONS,100).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
