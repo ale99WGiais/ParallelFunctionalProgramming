@@ -82,7 +82,7 @@ def segreduce [n] 't (op: t -> t -> t) (ne: t) (arr: [n](t, bool)) =
     let shifted = rotateLeftAndAppend sums (n*2)
     let takenPos = map2 (\a b -> (b > a) && (a > 0)) sums shifted
     let res = filter snd (zip segscanRes takenPos)
-    in res
+    in map fst res
 
 -- segreduce (+) 0 [(1, false), (2, true), (3, false), (4, false), (5, true), (6, false), (7, true), (8, false), (9, true)] 
 
@@ -98,14 +98,24 @@ def rotateRightAndAppend [n] 't (v: [n]t) (end: t) :[n]t =
     tabulate n (\i -> if i == 0 then end else v[i - 1]) 
 
 
-def hist 'a [n] (op : a -> a -> a) (ne : a) (k: i64) (is : [n]i64) (as : [n]a) = 
-    let sorted = radix_sort_by_key fst i64.num_bits i64.get_bit (zip is as)
-    let isShifted = rotateRightAndAppend is (-1)
-    let begins = map2 (\a b -> b < a) is isShifted
-    let res = segreduce 
-    in (sorted, is, isShifted, begins)
+def hist 'a [n] (op : a -> a -> a) (ne : a) (k: i64) (iss : [n]i64) (ass : [n]a) = 
+    let sz = n + k
+    let is2 = concat iss (iota k) :> [sz]i64
+    let as2 = concat ass (replicate k ne) :> [sz]a
+    let sorted = radix_sort_by_key fst i64.num_bits i64.get_bit (zip is2 as2)
+    let is2Sorted = map fst sorted
+    let as2Sorted = map snd sorted
+    let isShifted = rotateRightAndAppend is2Sorted (-1)
+    let begins = map2 (\a b -> b < a) is2Sorted isShifted
+    let res = segreduce op ne (zip as2Sorted begins)
+    in res
     
 -- def t = radix_sort_by_key fst i64.num_bits i64.get_bit [(1, "a"), (0, "b")]
 
 -- hist (+) 0 5 [0, 0, 0, 1, 1, 2, 2, 2, 2, 3, 3] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 
+
+
+-- size coercion
+-- def concat_to 'a (m: i32) (a: []a) (b: []a) : [m]a =
+--   a ++ b :> [m]a
