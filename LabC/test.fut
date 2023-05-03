@@ -77,10 +77,10 @@ def rotateLeftAndAppend [n] 't (v: [n]t) (end: t) :[n]t =
 
 def segreduce [n] 't (op: t -> t -> t) (ne: t) (arr: [n](t, bool)) = 
     let segscanRes = segscan op ne arr
-    let ints = map i64.bool (map snd arr)
-    let sums = scan (+) 0 ints
-    let shifted = rotateLeftAndAppend sums (n*2)
-    let takenPos = map2 (\a b -> (b > a) && (a > 0)) sums shifted
+    let ints = map i64.bool (map snd arr)  --convert bool to int
+    let sums = scan (+) 0 ints     --cumulative sum
+    let shifted = rotateLeftAndAppend sums (n*2)    --shift left, add big number in the end (to output final value)
+    let takenPos = map2 (\a b -> (b > a) && (a > 0)) sums shifted    --output right before each "true" excluding the first
     let res = filter snd (zip segscanRes takenPos)
     in map fst res
 
@@ -100,14 +100,14 @@ def rotateRightAndAppend [n] 't (v: [n]t) (end: t) :[n]t =
 
 def hist 'a [n] (op : a -> a -> a) (ne : a) (k: i64) (iss : [n]i64) (ass : [n]a) = 
     let sz = n + k
-    let is2 = concat iss (iota k) :> [sz]i64
+    let is2 = concat iss (iota k) :> [sz]i64          --add dummy (neutral) elements for each bin, to guarantee having at least one element for each bin
     let as2 = concat ass (replicate k ne) :> [sz]a
-    let sorted = radix_sort_by_key fst i64.num_bits i64.get_bit (zip is2 as2)
-    let is2Sorted = map fst sorted
-    let as2Sorted = map snd sorted
-    let isShifted = rotateRightAndAppend is2Sorted (-1)
-    let begins = map2 (\a b -> b < a) is2Sorted isShifted
-    let res = segreduce op ne (zip as2Sorted begins)
+    let sorted = radix_sort_by_key fst i64.num_bits i64.get_bit (zip is2 as2)   --sort [(bin, value)] by bin
+    let is2Sorted = map fst sorted      --sorted bin values
+    let as2Sorted = map snd sorted      --sorted item values
+    let is2SortedShifted = rotateRightAndAppend is2Sorted (-1)     --shift right indexes
+    let begins = map2 (\a b -> b < a) is2Sorted is2SortedShifted   --begin bin when is2SortedShifted < is2Sorted
+    let res = segreduce op ne (zip as2Sorted begins)        --segreduce with "begins" mask
     in res
     
 -- def t = radix_sort_by_key fst i64.num_bits i64.get_bit [(1, "a"), (0, "b")]
