@@ -62,11 +62,30 @@ entry process2 [n] (a: [n]i32) (b: [n]i32) : (i32, i64) =
 def main (a: []i32) (b: []i32) = process a b
 
 
+def fst (a, _) = a
+def snd (_, b) = b
 
-def segscan [n] 't (op: t -> t -> t) (ne: t) (arr: [n](t, bool)) = 
-    --let combine (accV accF) (newV newF) = (if newF then newV else (op accV newV), true) in
-    --let combine a b = op a b in
-    scan (\(vAcc, fAcc) (vNew, fNew) -> (if fNew then vNew else (op vAcc vNew), fAcc || fNew)) (ne, false) arr
 
+def segscan [n] 't (op: t -> t -> t) (ne: t) (arr: [n](t, bool)) :[n]t= 
+    let res = scan (\(vAcc, fAcc) (vNew, fNew) -> (if fNew then vNew else (op vAcc vNew), fAcc || fNew)) (ne, false) arr
+    in map fst res
+
+
+def rotateLeftAndAppend [n] 't (v: [n]t) (end: t) :[n]t = 
+    tabulate n (\i -> if i == n - 1 then end else v[i + 1]) 
+
+
+def segreduce [n] 't (op: t -> t -> t) (ne: t) (arr: [n](t, bool)) = 
+    let segscanRes = segscan op ne arr
+    let ints = map i64.bool (map snd arr)
+    let sums = scan (+) 0 ints
+    let shifted = rotateLeftAndAppend sums (n*2)
+    let takenPos = map2 (\a b -> (b > a) && (a > 0)) sums shifted
+    let res = filter snd (zip segscanRes takenPos)
+    in res
+
+
+-- segreduce (+) 0 [(1, false), (2, true), (3, false), (4, false), (5, true), (6, false), (7, true), (8, false), (9, true)] 
 
 -- segscan (+) 0 [(1, true), (2, false), (2, false),(2, false), (3, true),(2, false),(1, false)] 
+-- segreduce (+) 0 [(1, true), (2, false), (2, false),(2, false), (3, true),(2, false),(1, false)] 
