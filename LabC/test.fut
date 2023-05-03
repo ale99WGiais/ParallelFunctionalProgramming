@@ -61,3 +61,12 @@ entry process2 [n] (a: [n]i32) (b: [n]i32) : (i32, i64) =
 
 def main (a: []i32) (b: []i32) = process a b
 
+
+
+def segscan [n] 't (op: t -> t -> t) (ne: t) (arr: [n](t, bool)) = 
+    --let combine (accV accF) (newV newF) = (if newF then newV else (op accV newV), true) in
+    --let combine a b = op a b in
+    scan (\(vAcc, fAcc) (vNew, fNew) -> (if fNew then vNew else (op vAcc vNew), fAcc || fNew)) (ne, false) arr
+
+
+-- segscan (+) 0 [(1, true), (2, false), (2, false),(2, false), (3, true),(2, false),(1, false)] 
