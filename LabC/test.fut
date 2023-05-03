@@ -84,8 +84,28 @@ def segreduce [n] 't (op: t -> t -> t) (ne: t) (arr: [n](t, bool)) =
     let res = filter snd (zip segscanRes takenPos)
     in res
 
-
 -- segreduce (+) 0 [(1, false), (2, true), (3, false), (4, false), (5, true), (6, false), (7, true), (8, false), (9, true)] 
 
 -- segscan (+) 0 [(1, true), (2, false), (2, false),(2, false), (3, true),(2, false),(1, false)] 
 -- segreduce (+) 0 [(1, true), (2, false), (2, false),(2, false), (3, true),(2, false),(1, false)] 
+
+
+import "lib/github.com/diku-dk/sorts/radix_sort"
+
+
+
+def rotateRightAndAppend [n] 't (v: [n]t) (end: t) :[n]t = 
+    tabulate n (\i -> if i == 0 then end else v[i - 1]) 
+
+
+def hist 'a [n] (op : a -> a -> a) (ne : a) (k: i64) (is : [n]i64) (as : [n]a) = 
+    let sorted = radix_sort_by_key fst i64.num_bits i64.get_bit (zip is as)
+    let isShifted = rotateRightAndAppend is (-1)
+    let begins = map2 (\a b -> b < a) is isShifted
+    let res = segreduce 
+    in (sorted, is, isShifted, begins)
+    
+-- def t = radix_sort_by_key fst i64.num_bits i64.get_bit [(1, "a"), (0, "b")]
+
+-- hist (+) 0 5 [0, 0, 0, 1, 1, 2, 2, 2, 2, 3, 3] [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+
