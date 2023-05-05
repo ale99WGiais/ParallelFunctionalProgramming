@@ -1,8 +1,14 @@
 -- We represent a spin as a single byte.  In principle, we need only
--- two values (-1 or 1), but Futhark represents booleans a a full byte
+-- two values (-1 or 1), but Futhark represents booleans a full byte
 -- entirely, so using an i8 instead takes no more space, and makes the
 -- arithmetic simpler.
 type spin = i8
+
+
+
+def fst (a, _) = a
+def snd (_, b) = b
+
 
 import "lib/github.com/diku-dk/cpprandom/random"
 
@@ -26,11 +32,25 @@ module rand_i8 = uniform_int_distribution i8 rng_engine
 
 def rand = rand_f32.rand (0f32, 1f32)
 
+-- test 1 4 4
+
+  
+
 -- Create a new grid of a given size.  Also produce an identically
 -- sized array of RNG states.
-def random_grid (seed: i32) (h: i64) (w: i64)
+def random_grid (seed: i32) (h: i64) (w: i64) 
               : ([h][w]rng_engine.rng, [h][w]spin) =
-  ???
+  let myrng = rng_engine.rng_from_seed [seed]
+  let vecDim = h * w
+  let seeds = rng_engine.split_rng vecDim myrng
+  let rndVec = map (rand_i8.rand (0i8, 1i8)) seeds
+  let rndVecValues = map snd rndVec
+  let rndVecValues2 = map (\x -> if x == 1 then 1 else -1) rndVecValues
+  let matValues = unflatten h w rndVecValues2
+  let rndVecSeeds = map fst rndVec
+  let matSeeds = unflatten h w rndVecSeeds
+  --let res = scan (\((seed, num), _) -> rand_i8.rand (0i8, 1i8) seed) (myrng, -1) numbers
+  in (matSeeds, matValues)
 
 -- Compute $\Delta_e$ for each spin in the grid, using wraparound at
 -- the edges.
