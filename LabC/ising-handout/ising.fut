@@ -52,10 +52,32 @@ def random_grid (seed: i32) (h: i64) (w: i64)
   --let res = scan (\((seed, num), _) -> rand_i8.rand (0i8, 1i8) seed) (myrng, -1) numbers
   in (matSeeds, matValues)
 
+
+def t =
+  let mat = unflatten 5 5 (iota 25) 
+  let len = 25
+  let matFlat = flatten mat :> [len]i64
+  let dx = flatten (map (rotate 1) mat) :> [len]i64
+  let sx = flatten (map (rotate (-1)) mat) :> [len]i64
+  let down = flatten (rotate 1 mat) :> [len]i64
+  let up = flatten (rotate (-1) mat) :> [len]i64
+  let calcDelta el sx dx up down = 2 * el * (sx + dx + up + down)
+  let comb = map5 calcDelta matFlat sx dx up down 
+  in unflatten 5 5 comb
+
 -- Compute $\Delta_e$ for each spin in the grid, using wraparound at
 -- the edges.
 def deltas [h][w] (spins: [h][w]spin): [h][w]i8 =
-  ???
+  let mat = spins
+  let len = h * w
+  let matFlat = flatten mat :> [len]i8
+  let dx = flatten (map (rotate 1) mat) :> [len]i8
+  let sx = flatten (map (rotate (-1)) mat) :> [len]i8
+  let down = flatten (rotate 1 mat) :> [len]i8
+  let up = flatten (rotate (-1) mat) :> [len]i8
+  let calcDelta el sx dx up down = 2 * el * (sx + dx + up + down)
+  let comb = map5 calcDelta matFlat sx dx up down 
+  in unflatten h w comb
 
 -- The sum of all deltas of a grid.  The result is a measure of how
 -- ordered the grid is.
