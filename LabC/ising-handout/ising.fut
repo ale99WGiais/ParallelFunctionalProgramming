@@ -82,7 +82,9 @@ def deltas [h][w] (spins: [h][w]spin): [h][w]i8 =
 -- The sum of all deltas of a grid.  The result is a measure of how
 -- ordered the grid is.
 def delta_sum [h][w] (spins: [w][h]spin): i32 =
-  ???
+  let spinFlatten = flatten spins
+  let spinFlatten32 = map i32.i8 spinFlatten
+  in reduce (+) (0:i32) spinFlatten32
 
 -- Take one step in the Ising 2D simulation.
 def step [h][w] (abs_temp: f32) (samplerate: f32)
