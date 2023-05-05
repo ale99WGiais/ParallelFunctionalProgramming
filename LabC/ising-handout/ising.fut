@@ -1,3 +1,6 @@
+
+
+
 -- We represent a spin as a single byte.  In principle, we need only
 -- two values (-1 or 1), but Futhark represents booleans a full byte
 -- entirely, so using an i8 instead takes no more space, and makes the
@@ -32,9 +35,6 @@ module rand_i8 = uniform_int_distribution i8 rng_engine
 
 def rand = rand_f32.rand (0f32, 1f32)
 
--- test 1 4 4
-
-  
 
 -- Create a new grid of a given size.  Also produce an identically
 -- sized array of RNG states.
@@ -51,19 +51,6 @@ def random_grid (seed: i32) (h: i64) (w: i64)
   let matSeeds = unflatten h w rndVecSeeds
   --let res = scan (\((seed, num), _) -> rand_i8.rand (0i8, 1i8) seed) (myrng, -1) numbers
   in (matSeeds, matValues)
-
-
-def t =
-  let mat = unflatten 5 5 (iota 25) 
-  let len = 25
-  let matFlat = flatten mat :> [len]i64
-  let dx = flatten (map (rotate 1) mat) :> [len]i64
-  let sx = flatten (map (rotate (-1)) mat) :> [len]i64
-  let down = flatten (rotate 1 mat) :> [len]i64
-  let up = flatten (rotate (-1) mat) :> [len]i64
-  let calcDelta el sx dx up down = 2 * el * (sx + dx + up + down)
-  let comb = map5 calcDelta matFlat sx dx up down 
-  in unflatten 5 5 comb
 
 -- Compute $\Delta_e$ for each spin in the grid, using wraparound at
 -- the edges.
@@ -86,11 +73,39 @@ def delta_sum [h][w] (spins: [w][h]spin): i32 =
   let spinFlatten32 = map i32.i8 spinFlatten
   in reduce (+) (0:i32) spinFlatten32
 
+
+-- let x = random_grid 1 5 5
+-- let rngs = fst x
+-- let spins = snd x
+-- t 10 0.3 rngs spins
+
+
+
+def exp (x) = (2.71828182846:f32) ** x   --todo how to use futhark's exp function?? importing math does not seem to solve :(
+
+def magicFormula (t:f32) (p:f32) (c:i8) (deltaE:i8) (a:f32) (b:f32) = 
+  let deltaEFloat = f32.i8 deltaE
+  let right = exp (- deltaEFloat / t)
+  in if (a < p) && ((deltaE < (-deltaE)) || (b < right)) then -c else c
+
+
 -- Take one step in the Ising 2D simulation.
 def step [h][w] (abs_temp: f32) (samplerate: f32)
                 (rngs: [h][w]rng_engine.rng) (spins: [h][w]spin)
               : ([h][w]rng_engine.rng, [h][w]spin) =
-  ???
+  let dim = h * w
+  let rngFlat = flatten rngs
+  let aTemp = map (rand_f32.rand (0f32, 1f32)) rngFlat
+  let a = map snd aTemp :> [dim]f32
+  let bTemp = map (rand_f32.rand (0f32, 1f32)) (map fst aTemp)
+  let b = map snd bTemp :> [dim]f32
+  let rngOut = unflatten h w (map fst bTemp)
+  let myDeltas = deltas spins
+  let deltaFlat = flatten myDeltas :> [dim]i8
+  let spinFlat = flatten spins :> [dim]i8
+  let resFlatten = map4 (magicFormula abs_temp samplerate) spinFlat deltaFlat a b
+  let res = unflatten h w resFlatten
+  in (rngOut, res)
 
 -- | Just for benchmarking.
 def main (abs_temp: f32) (samplerate: f32)
