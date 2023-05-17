@@ -39,25 +39,22 @@ group(K,Vs,Rest) ->
 map_reduce_par(Map,M,Reduce,R,Input) ->
     Parent = self(),
     Splits = split_into(M,Input),
-    NodesMap = generateListOfNodes (M),
     Mappers = 
-	[spawn_mapper(Parent,Map,R,Split,Node)
-	 || {Split, Node} <- lists:zip(Splits, NodesMap)],
+	[spawn_mapper(Parent,Map,R,Split)
+	 || Split <- Splits],
     Mappeds = 
 	[receive {Pid,L} -> L end || Pid <- Mappers],
     io:format("Map phase complete\n"),
-    NodesRed = generateListOfNodes (R),
     Reducers = 
-	[spawn_reducer(Parent,Reduce,I,Mappeds, Node) 
-	 || {I, Node} <- lists:zip(lists:seq(0,R-1), NodesRed)],
+	[spawn_reducer(Parent,Reduce,I,Mappeds) 
+	 || I <- lists:seq(0,R-1)],
     Reduceds = 
 	[receive {Pid,L} -> L end || Pid <- Reducers],
     io:format("Reduce phase complete\n"),
     lists:sort(lists:flatten(Reduceds)).
 
-spawn_mapper(Parent, Map,R,Split, Node) ->
-    io:format("spawn Mapper on node ~s \n", [Node]),
-    spawn_link(Node, fun() ->
+spawn_mapper(Parent,Map,R,Split) ->
+    spawn_link(fun() ->
 			Mapped = [{erlang:phash2(K2,R),{K2,V2}}
 				  || {K,V} <- Split,
 				     {K2,V2} <- Map(K,V)],
@@ -74,32 +71,13 @@ split_into(N,L,Len) ->
     {Pre,Suf} = lists:split(Len div N,L),
     [Pre|split_into(N-1,Suf,Len-(Len div N))].
 
-spawn_reducer(Parent,Reduce,I,Mappeds, Node) ->
-    io:format("spawn Reducer on node ~s \n", [Node]),
+spawn_reducer(Parent,Reduce,I,Mappeds) ->
     Inputs = [KV
 	      || Mapped <- Mappeds,
 		 {J,KVs} <- Mapped,
 		 I==J,
 		 KV <- KVs],
-    spawn_link(Node, fun() -> Result = reduce_seq(Reduce,Inputs),
+    spawn_link(fun() -> Result = reduce_seq(Reduce,Inputs),
                         io:format("."),
                         Parent ! {self(),Result} end).
 
-
-
-
-cycle ([X|Xs]) -> {X, append_last(X, Xs)} .
-
-append_last (X, List) ->
-    ListReversed = lists:reverse(List),
-    NewList = [X | ListReversed],
-    Res = lists:reverse(NewList),
-    Res.
-
-
-
-generateListOfNodes (HowMany) -> 
-    List = nodes(),
-    Len = length(List),
-    Result = lists:map(fun(Num) -> lists:nth((Num rem Len) + 1, List) end, lists:seq(0,HowMany-1)),
-    Result.

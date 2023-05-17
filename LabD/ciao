@@ -51,3 +51,7 @@ rpc:call('ale@LAPTOP-LSHNFLTD',io,format,["hello"]).
 
 map_reduce:map_reduce_seq(fun foo:mymap/2, fun foo:myred/2, [{1, 1}, {2, 2}, {3,3}]).
 
+
+
+
+page_rank:bm(fun page_rank:page_rank/0).
