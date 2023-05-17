@@ -1,0 +1,16 @@
+
+
+net_adm:ping('ale@LAPTOP-LSHNFLTD').
+
+rpc:call('ale@LAPTOP-LSHNFLTD',io,format,[user,"hello",[]]).
+
+
+map_reduce:map_reduce_seq(fun foo:mymap/2, fun foo:myred/2, [{1, 1}, {2, 2}, {3,3}]).
+
+
+
+inets:start().
+
+ssl:start().
+
+crawl:crawl("http://www.chalmers.se/",3).
