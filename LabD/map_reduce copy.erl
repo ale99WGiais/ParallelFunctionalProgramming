@@ -39,9 +39,10 @@ group(K,Vs,Rest) ->
 map_reduce_par(Map,M,Reduce,R,Input) ->
     Parent = self(),
     Splits = split_into(M,Input),
+    Nodes = generateListOfNodes (M),
     Mappers = 
-	[spawn_mapper(Parent,Map,R,Split)
-	 || Split <- Splits],
+	[spawn_mapper(Parent,Map,R,Split,Node)
+	 || {Split, Node} <- lists:zip(Splits, Nodes)],
     Mappeds = 
 	[receive {Pid,L} -> L end || Pid <- Mappers],
     io:format("Map phase complete\n"),
@@ -53,8 +54,8 @@ map_reduce_par(Map,M,Reduce,R,Input) ->
     io:format("Reduce phase complete\n"),
     lists:sort(lists:flatten(Reduceds)).
 
-spawn_mapper(Parent,Map,R,Split) ->
-    spawn_link(fun() ->
+spawn_mapper(Parent,Map,R,Split, Node) ->
+    spawn_link(Node, fun() ->
 			Mapped = [{erlang:phash2(K2,R),{K2,V2}}
 				  || {K,V} <- Split,
 				     {K2,V2} <- Map(K,V)],
@@ -77,12 +78,26 @@ spawn_reducer(Parent,Reduce,I,Mappeds) ->
 		 {J,KVs} <- Mapped,
 		 I==J,
 		 KV <- KVs],
-    spawn_link(fun() -> Result = reduce_seq(Reduce,Inputs),
+    spawn_link('worker2@LAPTOP-LSHNFLTD', fun() -> Result = reduce_seq(Reduce,Inputs),
                         io:format("."),
                         Parent ! {self(),Result} end).
+
+
+
+
+cycle ([X|Xs]) -> {X, append_last(X, Xs)} .
+
+append_last (X, List) ->
+    ListReversed = lists:reverse(List),
+    NewList = [X | ListReversed],
+    Res = lists:reverse(NewList),
+    Res.
+
+
 
 generateListOfNodes (HowMany) -> 
     List = nodes(),
     Len = length(List),
     Result = lists:map(fun(Num) -> lists:nth((Num rem Len) + 1, List) end, lists:seq(0,HowMany-1)),
-    Result.
+    Result2 = lists:map(fun(Num) -> lists:nth(0 + 1, List) end, lists:seq(0,HowMany-1)),
+    Result2.
