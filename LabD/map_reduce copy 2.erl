@@ -54,13 +54,19 @@ map_reduce_par(Map,M,Reduce,R,Input) ->
     lists:sort(lists:flatten(Reduceds)).
 
 spawn_mapper(Parent,Map,R,Split) ->
-    spawn_link(fun() ->
-			Mapped = [{erlang:phash2(K2,R),{K2,V2}}
-				  || {K,V} <- Split,
-				     {K2,V2} <- Map(K,V)],
-                        io:format("."),
-			Parent ! {self(),group(lists:sort(Mapped))}
-		end).
+    F = fun() ->
+			Res = rpc:call('worker1@LAPTOP-LSHNFLTD',map_reduce,executeMapper,[Map, R, Split]),
+			Parent ! {self(), Res}
+		end,
+    spawn_link(F).
+
+executeMapper (Map, R, Split) -> 
+    Mapped = [{erlang:phash2(K2,R),{K2,V2}}
+            || {K,V} <- Split,
+                {K2,V2} <- Map(K,V)],
+    io:format("."),
+    group(lists:sort(Mapped)).
+
 
 split_into(N,L) ->
     split_into(N,L,length(L)).
@@ -80,4 +86,11 @@ spawn_reducer(Parent,Reduce,I,Mappeds) ->
     spawn_link(fun() -> Result = reduce_seq(Reduce,Inputs),
                         io:format("."),
                         Parent ! {self(),Result} end).
+
+generateListOfNodes (HowMany) -> 
+    List = nodes(),
+    Len = length(List),
+    Result = lists:map(fun(Num) -> lists:nth((Num rem Len) + 1, List) end, lists:seq(0,HowMany-1)),
+    Result.
+
 

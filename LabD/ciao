@@ -1,12 +1,9 @@
 
 
-net_adm:ping('ale@LAPTOP-LSHNFLTD').
-
-rpc:call('ale@LAPTOP-LSHNFLTD',io,format,[user,"hello",[]]).
-
-
-map_reduce:map_reduce_seq(fun foo:mymap/2, fun foo:myred/2, [{1, 1}, {2, 2}, {3,3}]).
-
+net_adm:ping('worker1@LAPTOP-LSHNFLTD').
+net_adm:ping('worker2@LAPTOP-LSHNFLTD').
+net_adm:ping('worker3@LAPTOP-LSHNFLTD').
+net_adm:ping('worker4@LAPTOP-LSHNFLTD').
 
 c(crawl).
 c(map_reduce).
@@ -18,10 +15,19 @@ nl(page_rank).
 
 
 inets:start().
-
 ssl:start().
-
 crawl:crawl("http://www.chalmers.se/",3).
+
+
+c(crawl).
+c(map_reduce).
+c(page_rank).
+
+nl(crawl).
+nl(map_reduce).
+nl(page_rank).
+
+page_rank:page_rank_par().
 
 
 
@@ -40,14 +46,8 @@ Result = lists:map(fun(Num) -> List[Num] end, List).
 
 
 
+rpc:call('ale@LAPTOP-LSHNFLTD',io,format,["hello"]).
 
 
-c(crawl).
-c(map_reduce).
-c(page_rank).
+map_reduce:map_reduce_seq(fun foo:mymap/2, fun foo:myred/2, [{1, 1}, {2, 2}, {3,3}]).
 
-nl(crawl).
-nl(map_reduce).
-nl(page_rank).
-
-page_rank:page_rank_par().
