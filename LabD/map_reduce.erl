@@ -39,10 +39,10 @@ group(K,Vs,Rest) ->
 map_reduce_par(Map,M,Reduce,R,Input) ->
     Splits = split_into(M,Input),
     Mappers = [get_mapper(Map,R,Split) || Split <- Splits],
-    Mappeds = processDistributed(nodes(), Mappers, 0),
+    Mappeds = processDistributed(Mappers),
     io:format("Map phase complete\n"),
     Reducers = [get_reducer(Reduce,I,Mappeds) || I <- lists:seq(0,R-1)],
-    Reduceds = processDistributed(nodes(), Reducers, 0),
+    Reduceds = processDistributed(Reducers),
     io:format("Reduce phase complete\n"),
     lists:sort(lists:flatten(Reduceds)).
 
@@ -76,32 +76,46 @@ get_reducer(Reduce,I,Mappeds) ->
         Result end.
 
 
-processDistributed(_, [], 0) -> 
+
+processDistributed(Splits) -> 
+    processDistributed(nodes(), Splits, 0, #{}).
+
+
+processDistributed(_, [], 0, _) -> 
     [];
-processDistributed(_, [], NbActive) -> 
+processDistributed(AvailableNodes, [], NbActive, MapPidSplits) -> 
     Parent = self(),
     receive 
-        {'EXIT', Pid, normal} -> processDistributed([], [], NbActive);
+        {'EXIT', Pid, normal} -> processDistributed(AvailableNodes, [], NbActive, maps:remove(Pid, MapPidSplits));
         {Parent, Node, Res} -> 
             io:format("receive from node ~p \n", [Node]), 
-            [Res | processDistributed([], [], NbActive - 1)];
-        Other -> io:format("Other ~p \n", [Other]), []
+            [Res | processDistributed([Node | AvailableNodes], [], NbActive - 1, MapPidSplits)];
+        {'EXIT', Pid, Reason} -> 
+            io:format("EXIT ~p ~p \n", [Pid, Reason]), 
+            SplitNotProcessed = maps:get(Pid, MapPidSplits),
+            processDistributed(AvailableNodes, [SplitNotProcessed], NbActive - 1, MapPidSplits) 
     end;
-processDistributed([], SplitsToProcess, NbActive) ->
+processDistributed([], SplitsToProcess, NbActive, MapPidSplits) ->
     Parent = self(), 
     receive 
-        {'EXIT', Pid, normal} -> processDistributed([], SplitsToProcess, NbActive);
+        {'EXIT', Pid, normal} -> processDistributed([], SplitsToProcess, NbActive, maps:remove(Pid, MapPidSplits));
         {Parent, Node, Res} -> 
             io:format("receive from node ~p \n", [Node]), 
-            [Res | processDistributed([Node], SplitsToProcess, NbActive - 1)];
-        Other -> io:format("Other ~p \n", [Other]), []
+            [Res | processDistributed([Node], SplitsToProcess, NbActive - 1, MapPidSplits)];
+        {'EXIT', Pid, Reason} -> 
+            io:format("EXIT ~p ~p \n", [Pid, Reason]), 
+            SplitNotProcessed = maps:get(Pid, MapPidSplits),
+            processDistributed([], [SplitNotProcessed | SplitsToProcess], NbActive - 1, MapPidSplits)
     end;
-processDistributed([AvailableNode | AvailableNodes], [SplitToProcess | SplitsToProcess], NbActive) -> 
+processDistributed([AvailableNode | AvailableNodes], [SplitToProcess | SplitsToProcess], NbActive, MapPidSplits) -> 
     Parent = self(),
     process_flag(trap_exit,true),
-    _ = spawn_link(AvailableNode, fun() -> Parent! {Parent, AvailableNode, SplitToProcess()} end),
+    SpawnedPid = spawn_link(AvailableNode, fun() -> Parent! {Parent, AvailableNode, SplitToProcess()} end),
+    MapPidSplits2 = maps:put(SpawnedPid, SplitToProcess, MapPidSplits),
     io:format("spawned process on node ~p \n", [AvailableNode]), 
-    processDistributed(AvailableNodes, SplitsToProcess, NbActive + 1).
+    Keys = maps:keys(MapPidSplits2),
+    io:format("Keys: ~p~n \n", [Keys]),
+    processDistributed(AvailableNodes, SplitsToProcess, NbActive + 1, MapPidSplits2).
 
 
 
