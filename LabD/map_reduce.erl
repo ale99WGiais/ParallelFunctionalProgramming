@@ -96,7 +96,7 @@ processDistributed([], SplitsToProcess, NbActive) ->
     [Res | processDistributed([Node], SplitsToProcess, NbActive - 1)];
 processDistributed([AvailableNode | AvailableNodes], [SplitToProcess | SplitsToProcess], NbActive) -> 
     Parent = self(),
-    _ = spawn_link(fun() -> Parent! {Parent, AvailableNode, SplitToProcess} end),
+    _ = spawn_link(AvailableNode, fun() -> Parent! {Parent, AvailableNode, SplitToProcess} end),
     io:format("spawned process ~p on node ~p \n", [SplitToProcess, AvailableNode]), 
     processDistributed(AvailableNodes, SplitsToProcess, NbActive + 1).
 
