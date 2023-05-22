@@ -37,6 +37,7 @@ group(K,Vs,Rest) ->
     [{K,lists:reverse(Vs)}|group(Rest)].
 
 map_reduce_par(Map,M,Reduce,R,Input) ->
+    Parent = self(),
     Splits = split_into(M,Input),
     Mappers = [get_mapper(Map,R,Split) || Split <- Splits],
     Mappeds = processDistributed(nodes(), Mappers, 0),
@@ -80,25 +81,16 @@ processDistributed(_, [], 0) ->
     [];
 processDistributed(_, [], NbActive) -> 
     Parent = self(),
-    receive 
-        {'EXIT', Pid, normal} -> processDistributed([], [], NbActive);
-        {Parent, Node, Res} -> 
-            io:format("receive from node ~p \n", [Node]), 
-            [Res | processDistributed([], [], NbActive - 1)];
-        Other -> io:format("Other ~p \n", [Other]), []
-    end;
+    {Node, Res} = receive {Parent, Node, Res} -> {Node, Res} end,
+    io:format("receive from node ~p \n", [Node]), 
+    [Res | processDistributed([], [], NbActive - 1)] ;
 processDistributed([], SplitsToProcess, NbActive) ->
     Parent = self(), 
-    receive 
-        {'EXIT', Pid, normal} -> processDistributed([], SplitsToProcess, NbActive);
-        {Parent, Node, Res} -> 
-            io:format("receive from node ~p \n", [Node]), 
-            [Res | processDistributed([Node], SplitsToProcess, NbActive - 1)];
-        Other -> io:format("Other ~p \n", [Other]), []
-    end;
+    {Node, Res} = receive {Parent, Node, Res} -> {Node, Res} end,
+    io:format("receive from node ~p \n", [Node]), 
+    [Res | processDistributed([Node], SplitsToProcess, NbActive - 1)];
 processDistributed([AvailableNode | AvailableNodes], [SplitToProcess | SplitsToProcess], NbActive) -> 
     Parent = self(),
-    process_flag(trap_exit,true),
     _ = spawn_link(AvailableNode, fun() -> Parent! {Parent, AvailableNode, SplitToProcess()} end),
     io:format("spawned process on node ~p \n", [AvailableNode]), 
     processDistributed(AvailableNodes, SplitsToProcess, NbActive + 1).
