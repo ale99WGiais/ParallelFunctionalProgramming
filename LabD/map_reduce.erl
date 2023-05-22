@@ -49,12 +49,12 @@ map_reduce_par(Map,M,Reduce,R,Input) ->
 
 get_mapper(Map,R,Split) ->
     fun() ->
-			Mapped = [{erlang:phash2(K2,R),{K2,V2}}
-				  || {K,V} <- Split,
-				     {K2,V2} <- Map(K,V)],
-                        io:format("."),
-			group(lists:sort(Mapped))
-		end.
+        Mapped = [{erlang:phash2(K2,R),{K2,V2}} || 
+            {K,V} <- Split,
+            {K2,V2} <- Map(K,V)
+        ],
+        group(lists:sort(Mapped))
+    end.
 
 split_into(N,L) ->
     split_into(N,L,length(L)).
