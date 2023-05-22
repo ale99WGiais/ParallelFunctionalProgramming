@@ -81,3 +81,42 @@ spawn_reducer(Parent,Reduce,I,Mappeds) ->
                         io:format("."),
                         Parent ! {self(),Result} end).
 
+
+processDistributed(_, [], 0) -> 
+    [];
+processDistributed(_, [], NbActive) -> 
+    Parent = self(),
+    {Node, Res} = receive {Parent, Node, Res} -> {Node, Res} end,
+    io:format("receive ~p from ~p \n", [Res, Node]), 
+    [Res | processDistributed([], [], NbActive - 1)] ;
+processDistributed([], SplitsToProcess, NbActive) ->
+    Parent = self(), 
+    {Node, Res} = receive {Parent, Node, Res} -> {Node, Res} end,
+    io:format("receive ~p from ~p \n", [Res, Node]), 
+    [Res | processDistributed([Node], SplitsToProcess, NbActive - 1)];
+processDistributed([AvailableNode | AvailableNodes], [SplitToProcess | SplitsToProcess], NbActive) -> 
+    Parent = self(),
+    _ = spawn_link(fun() -> Parent! {Parent, AvailableNode, SplitToProcess} end),
+    io:format("spawned process ~p on node ~p \n", [SplitToProcess, AvailableNode]), 
+    processDistributed(AvailableNodes, SplitsToProcess, NbActive + 1).
+
+
+
+
+%% Idea: write a recursive function that takes: 
+%% list of available nodes
+%% list of Splits to process
+%% number of active processes
+%% And returns the list of results. 
+
+%% It can be seen as a state machine:
+%% if there are no splits yet to process
+%% if there are no active processes: return empty list
+%% else: receive a result, return [res | recursiveCall(activeProcesses - 1)]
+%% else:
+%% if there is a node available: send the split to the worker, return recursiveCall(availableNodes - spawned, splitsToProcess - split, activeProcesses + 1)
+%% else: receive a result, return [res | recursiveCall(availableNodes + finished, activeProcesses - 1)
+
+
+%% The initial set of splitsToProcess is all splits.
+%% The initial set of available nodes is nodes().
