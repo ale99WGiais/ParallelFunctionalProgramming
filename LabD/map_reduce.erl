@@ -39,28 +39,22 @@ group(K,Vs,Rest) ->
 map_reduce_par(Map,M,Reduce,R,Input) ->
     Parent = self(),
     Splits = split_into(M,Input),
-    Mappers = 
-	[spawn_mapper(Parent,Map,R,Split)
-	 || Split <- Splits],
-    Mappeds = 
-	[receive {Pid,L} -> L end || Pid <- Mappers],
+    Mappers = [get_mapper(Map,R,Split) || Split <- Splits],
+    Mappeds = processDistributed(nodes(), Mappers, 0),
     io:format("Map phase complete\n"),
-    Reducers = 
-	[spawn_reducer(Parent,Reduce,I,Mappeds) 
-	 || I <- lists:seq(0,R-1)],
-    Reduceds = 
-	[receive {Pid,L} -> L end || Pid <- Reducers],
+    Reducers = [get_reducer(Reduce,I,Mappeds) || I <- lists:seq(0,R-1)],
+    Reduceds = processDistributed(nodes(), Reducers, 0),
     io:format("Reduce phase complete\n"),
     lists:sort(lists:flatten(Reduceds)).
 
-spawn_mapper(Parent,Map,R,Split) ->
-    spawn_link(fun() ->
+get_mapper(Map,R,Split) ->
+    fun() ->
 			Mapped = [{erlang:phash2(K2,R),{K2,V2}}
 				  || {K,V} <- Split,
 				     {K2,V2} <- Map(K,V)],
                         io:format("."),
-			Parent ! {self(),group(lists:sort(Mapped))}
-		end).
+			group(lists:sort(Mapped))
+		end.
 
 split_into(N,L) ->
     split_into(N,L,length(L)).
@@ -71,15 +65,16 @@ split_into(N,L,Len) ->
     {Pre,Suf} = lists:split(Len div N,L),
     [Pre|split_into(N-1,Suf,Len-(Len div N))].
 
-spawn_reducer(Parent,Reduce,I,Mappeds) ->
-    Inputs = [KV
-	      || Mapped <- Mappeds,
-		 {J,KVs} <- Mapped,
-		 I==J,
-		 KV <- KVs],
-    spawn_link(fun() -> Result = reduce_seq(Reduce,Inputs),
-                        io:format("."),
-                        Parent ! {self(),Result} end).
+get_reducer(Reduce,I,Mappeds) ->
+    Inputs = [KV || 
+        Mapped <- Mappeds,
+        {J,KVs} <- Mapped,
+        I==J,
+        KV <- KVs
+    ],
+    fun() -> 
+        Result = reduce_seq(Reduce,Inputs),
+        Result end.
 
 
 processDistributed(_, [], 0) -> 
@@ -87,17 +82,17 @@ processDistributed(_, [], 0) ->
 processDistributed(_, [], NbActive) -> 
     Parent = self(),
     {Node, Res} = receive {Parent, Node, Res} -> {Node, Res} end,
-    io:format("receive ~p from ~p \n", [Res, Node]), 
+    io:format("receive from node ~p \n", [Node]), 
     [Res | processDistributed([], [], NbActive - 1)] ;
 processDistributed([], SplitsToProcess, NbActive) ->
     Parent = self(), 
     {Node, Res} = receive {Parent, Node, Res} -> {Node, Res} end,
-    io:format("receive ~p from ~p \n", [Res, Node]), 
+    io:format("receive from node ~p \n", [Node]), 
     [Res | processDistributed([Node], SplitsToProcess, NbActive - 1)];
 processDistributed([AvailableNode | AvailableNodes], [SplitToProcess | SplitsToProcess], NbActive) -> 
     Parent = self(),
-    _ = spawn_link(AvailableNode, fun() -> Parent! {Parent, AvailableNode, SplitToProcess} end),
-    io:format("spawned process ~p on node ~p \n", [SplitToProcess, AvailableNode]), 
+    _ = spawn_link(AvailableNode, fun() -> Parent! {Parent, AvailableNode, SplitToProcess()} end),
+    io:format("spawned process on node ~p \n", [AvailableNode]), 
     processDistributed(AvailableNodes, SplitsToProcess, NbActive + 1).
 
 
