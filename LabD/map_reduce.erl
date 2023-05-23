@@ -78,6 +78,7 @@ get_reducer(Reduce,I,Mappeds) ->
 
 
 processDistributed(Splits) -> 
+    process_flag(trap_exit,true),
     processDistributed(nodes(), Splits, 0, #{}).
 
 
@@ -93,7 +94,7 @@ processDistributed(AvailableNodes, [], NbActive, MapPidSplits) ->
         {'EXIT', Pid, Reason} -> 
             io:format("EXIT ~p ~p \n", [Pid, Reason]), 
             SplitNotProcessed = maps:get(Pid, MapPidSplits),
-            processDistributed(AvailableNodes, [SplitNotProcessed], NbActive - 1, MapPidSplits) 
+            processDistributed(AvailableNodes, [SplitNotProcessed], NbActive - 1, maps:remove(Pid, MapPidSplits)) 
     end;
 processDistributed([], SplitsToProcess, NbActive, MapPidSplits) ->
     Parent = self(), 
@@ -105,11 +106,10 @@ processDistributed([], SplitsToProcess, NbActive, MapPidSplits) ->
         {'EXIT', Pid, Reason} -> 
             io:format("EXIT ~p ~p \n", [Pid, Reason]), 
             SplitNotProcessed = maps:get(Pid, MapPidSplits),
-            processDistributed([], [SplitNotProcessed | SplitsToProcess], NbActive - 1, MapPidSplits)
+            processDistributed([], [SplitNotProcessed | SplitsToProcess], NbActive - 1, maps:remove(Pid, MapPidSplits))
     end;
 processDistributed([AvailableNode | AvailableNodes], [SplitToProcess | SplitsToProcess], NbActive, MapPidSplits) -> 
     Parent = self(),
-    process_flag(trap_exit,true),
     SpawnedPid = spawn_link(AvailableNode, fun() -> Parent! {Parent, AvailableNode, SplitToProcess()} end),
     MapPidSplits2 = maps:put(SpawnedPid, SplitToProcess, MapPidSplits),
     io:format("spawned process on node ~p \n", [AvailableNode]), 
